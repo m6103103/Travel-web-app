@@ -3,354 +3,315 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>福岡旅遊助手 - 雲端同步版</title>
+    <title>福岡旅遊助手 Pro - 全功能雲端版</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-
-        // --- 這裡填入您的 Firebase 配置 ---
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyA6fV7gHlQMNYnGsiFyzMTYXrGpU93X96k",
-  authDomain: "my-travel-app-eff55.firebaseapp.com",
-  projectId: "my-travel-app-eff55",
-  storageBucket: "my-travel-app-eff55.firebasestorage.app",
-  messagingSenderId: "956233286029",
-  appId: "1:956233286029:web:ae064b514f9246c7587dc4",
-  measurementId: "G-5YT7CBYX27"
-};
-
-        window.fb = { initializeApp, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, query, getAuth, signInAnonymously, onAuthStateChanged, firebaseConfig };
-    </script>
-
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        jap: { 'paper': '#F2F2F7', 'accent': '#007AFF', 'ink': '#1C1C1E', 'positive': '#34C759', 'negative': '#FF3B30' }
-                    },
-                    borderRadius: { 'ios': '20px', 'ios-lg': '32px' }
+                        jap: { 'paper': '#F2F2F7', 'accent': '#007AFF', 'ink': '#1C1C1E', 'success': '#34C759', 'warning': '#FF9500' }
+                    }
                 }
             }
         }
     </script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #F2F2F7; overflow: hidden; }
+        [v-cloak] { display: none; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #F2F2F7; -webkit-tap-highlight-color: transparent; }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .bottom-sheet-enter-active, .bottom-sheet-leave-active { transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1); }
-        .bottom-sheet-enter-from, .bottom-sheet-leave-to { transform: translateY(100%); }
-        .tab-bar { background: rgba(255, 255, 255, 0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
         .status-pulse::after { content: ''; position: absolute; width: 100%; height: 100%; top: 0; left: 0; background: currentColor; border-radius: inherit; animation: ripple 2s infinite; }
         @keyframes ripple { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.5); opacity: 0; } }
+        .tab-bar { background: rgba(255, 255, 255, 0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
+        .ios-card { background: white; border-radius: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.02); }
     </style>
 </head>
 <body>
-    <div id="app" class="h-screen w-full relative overflow-hidden flex flex-col">
+    <div id="app" v-cloak class="h-screen w-full relative overflow-hidden flex flex-col">
         
-        <!-- 背景地圖 (僅在地圖分頁顯示) -->
-        <div v-show="activeTab === 'map'" class="absolute inset-0 z-0">
-            <div class="w-full h-full bg-slate-100">
-                <img src="https://images.unsplash.com/photo-1570114002773-6902251e6097?auto=format&fit=crop&q=80&w=2000" class="w-full h-full object-cover opacity-80">
+        <!-- 連線狀態燈 -->
+        <div class="fixed top-12 left-6 z-[100] pointer-events-none">
+            <div class="bg-white/90 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border flex items-center space-x-2 pointer-events-auto">
+                <div :class="['w-2.5 h-2.5 rounded-full', user ? 'bg-jap-success status-pulse' : 'bg-red-500']"></div>
+                <span class="text-[10px] font-black text-jap-ink tracking-widest uppercase">{{ user ? '雲端已連線' : '連線中...' }}</span>
             </div>
         </div>
 
-        <!-- 頂部用戶資訊 (顯示連線狀態) -->
-        <div class="fixed top-0 left-0 right-0 z-[150] px-6 pt-4 flex justify-between items-center pointer-events-none">
-            <div class="bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full shadow-sm border border-white flex items-center space-x-2 pointer-events-auto">
-                <div :class="['w-2 h-2 rounded-full', user ? 'bg-jap-positive' : 'bg-jap-negative']"></div>
-                <span class="text-[9px] font-black text-jap-ink uppercase tracking-wider">{{ user ? '雲端已連線' : '連線中...' }}</span>
-            </div>
-            <div v-if="user" class="bg-jap-ink/10 backdrop-blur-md px-3 py-1.5 rounded-full text-[9px] font-bold text-jap-ink pointer-events-auto">
-                ID: {{ user.uid.substring(0,6) }}
-            </div>
-        </div>
-
-        <!-- 主內容區域 -->
-        <main class="flex-grow relative z-10 overflow-hidden flex flex-col">
+        <!-- 主頁面內容 -->
+        <main class="flex-grow overflow-y-auto hide-scrollbar pb-32">
             
             <!-- 1. 行程分頁 -->
-            <section v-if="activeTab === 'itinerary'" class="h-full flex flex-col bg-jap-paper">
-                <div class="pt-14 pb-4 px-6 bg-white shadow-sm z-20">
-                    <div class="flex justify-between items-center mb-4">
-                        <h2 class="text-2xl font-black text-jap-ink">我們的行程</h2>
-                        <button @click="showAddEvent = true" class="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-jap-accent active:scale-90 transition-transform">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
+            <section v-if="activeTab === 'itinerary'" class="px-6 pt-20">
+                <div class="flex justify-between items-center mb-8">
+                    <div>
+                        <h1 class="text-3xl font-black text-jap-ink">我們的行程</h1>
+                        <p class="text-xs text-gray-400 font-bold mt-1">FUKUOKA TRIP 2024</p>
                     </div>
-                    <div class="flex overflow-x-auto hide-scrollbar space-x-3">
-                        <div v-for="day in 5" :key="day" @click="selectedDay = day"
-                             :class="['w-16 h-20 rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer flex-shrink-0', selectedDay === day ? 'bg-jap-accent text-white shadow-lg' : 'bg-gray-50 text-gray-400']">
-                            <span class="text-[10px] font-bold">{{ ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][day-1] }}</span>
-                            <span class="text-xl font-black mt-1">{{ 19 + day }}</span>
-                        </div>
-                    </div>
+                    <button @click="showAddEvent = true" class="w-12 h-12 bg-jap-accent text-white rounded-2xl shadow-lg active:scale-90 transition-transform">
+                        <i class="fa-solid fa-plus text-xl"></i>
+                    </button>
                 </div>
 
-                <div class="flex-grow overflow-y-auto hide-scrollbar px-6 pt-4 pb-32">
-                    <!-- 天氣卡片 -->
-                    <div class="mb-6 bg-white p-5 rounded-ios-lg shadow-sm border border-blue-50 flex items-center justify-between">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-12 h-12 bg-blue-50 text-jap-accent rounded-2xl flex items-center justify-center text-2xl"><i class="fa-solid fa-cloud-sun"></i></div>
-                            <div>
-                                <h3 class="text-sm font-black text-jap-ink">福岡天氣：晴時多雲</h3>
-                                <p class="text-[10px] text-gray-400 font-bold">Fukuoka · 14°C / 21°C</p>
-                            </div>
-                        </div>
-                        <div class="text-right"><p class="text-xs font-black text-jap-accent">降雨 10%</p></div>
-                    </div>
+                <div v-if="itinerary.length === 0" class="py-20 text-center opacity-20">
+                    <i class="fa-solid fa-map-location-dot text-6xl mb-4"></i>
+                    <p class="font-bold">目前沒有雲端行程</p>
+                </div>
 
-                    <!-- 行程列表 -->
-                    <div class="relative space-y-2">
-                        <div class="absolute left-[21px] top-6 bottom-6 w-0.5 bg-gray-200"></div>
-                        <div v-for="(item, idx) in itinerary" :key="item.id">
-                            <div class="relative pl-11 py-2">
-                                <div :class="['absolute left-0 w-4 h-4 rounded-full border-4 border-white shadow-sm z-10 -translate-x-[-13px] translate-y-3', idx === 0 ? 'bg-jap-accent scale-150' : 'bg-gray-300']">
-                                    <div v-if="idx === 0" class="absolute inset-0 bg-jap-accent rounded-full status-pulse"></div>
-                                </div>
-                                <div class="p-5 rounded-ios-lg bg-white shadow-sm flex justify-between items-center">
-                                    <div class="flex-grow">
-                                        <span class="text-[11px] font-black text-jap-accent">{{ item.time }}</span>
-                                        <h4 class="font-bold text-jap-ink text-lg">{{ item.location }}</h4>
-                                        <p class="text-xs text-gray-400 mt-1">{{ item.note }}</p>
-                                    </div>
-                                    <button @click="deleteItem('itinerary', item.id)" class="text-gray-200 p-2"><i class="fa-solid fa-trash-can text-xs"></i></button>
-                                </div>
+                <div class="space-y-4 relative">
+                    <div class="absolute left-[21px] top-6 bottom-6 w-0.5 bg-gray-200"></div>
+                    <div v-for="item in itinerary" :key="item.id" class="relative pl-11">
+                        <div class="absolute left-0 w-4 h-4 rounded-full border-4 border-white shadow-sm z-10 bg-jap-accent translate-y-6"></div>
+                        <div class="ios-card p-5 flex justify-between items-center">
+                            <div class="flex-grow">
+                                <span class="text-[11px] font-black text-jap-accent uppercase">{{ item.time }}</span>
+                                <h4 class="font-bold text-jap-ink text-lg">{{ item.location }}</h4>
+                                <p class="text-xs text-gray-400 mt-1">{{ item.note }}</p>
                             </div>
+                            <button @click="deleteItem('itinerary', item.id)" class="p-2 text-gray-200 hover:text-red-500"><i class="fa-solid fa-trash-can text-sm"></i></button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- 2. 地圖分頁 -->
-            <section v-if="activeTab === 'map'" class="h-full relative">
-                <div class="absolute bottom-32 left-6 right-6">
-                    <div class="bg-white/90 backdrop-blur-xl p-5 rounded-ios-lg shadow-2xl">
-                        <h3 class="text-base font-black text-jap-ink">目前位置：博多車站</h3>
-                        <p class="text-xs text-gray-400 font-bold mt-1">Hakata Station</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 3. 分帳分頁 -->
-            <section v-if="activeTab === 'split'" class="h-full bg-jap-paper pt-16 px-6 overflow-y-auto hide-scrollbar pb-32">
+            <!-- 2. 分帳分頁 -->
+            <section v-if="activeTab === 'split'" class="px-6 pt-20">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-black text-jap-ink">雲端分帳</h2>
-                    <button @click="showAddExpense = true" class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-jap-accent shadow-sm"><i class="fa-solid fa-plus"></i></button>
+                    <h1 class="text-3xl font-black text-jap-ink">分帳結算</h1>
+                    <button @click="showAddExpense = true" class="w-10 h-10 bg-white rounded-full text-jap-accent shadow-sm"><i class="fa-solid fa-plus"></i></button>
                 </div>
-                
-                <div class="bg-jap-ink p-8 rounded-[40px] shadow-2xl mb-8 text-white">
-                    <p class="text-[10px] font-bold text-gray-400 mb-2 uppercase">總支出 (TWD)</p>
-                    <h3 class="text-4xl font-black tracking-tighter">$ {{ totalExpenseAmount.toLocaleString() }}</h3>
-                    <div class="mt-8 flex items-center justify-between border-t border-white/10 pt-6">
+                <div class="bg-jap-ink p-8 rounded-[40px] shadow-2xl mb-8 text-white text-center">
+                    <p class="text-xs font-bold text-gray-400 mb-2 uppercase">總支出 (JPY)</p>
+                    <h2 class="text-5xl font-black tracking-tighter">¥ {{ totalJPY.toLocaleString() }}</h2>
+                    <p class="text-[10px] text-gray-500 mt-2">約 TWD {{ (totalJPY * 0.21).toLocaleString() }}</p>
+                    <button @click="clearCollection('expenses')" class="mt-6 bg-jap-accent/20 text-jap-accent text-xs px-6 py-2 rounded-full font-bold">一鍵清空</button>
+                </div>
+                <div class="space-y-3">
+                    <div v-for="ex in expenses" :key="ex.id" class="ios-card p-4 flex justify-between items-center">
                         <div>
-                            <p class="text-[10px] font-bold text-gray-500">平均每人</p>
-                            <p class="font-black text-jap-positive">$ {{ Math.round(totalExpenseAmount / 3).toLocaleString() }}</p>
-                        </div>
-                        <button @click="clearCollection('expenses')" class="bg-jap-accent text-white text-[11px] px-6 py-3 rounded-full font-black">全部結清</button>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div v-for="ex in expenses" :key="ex.id" class="bg-white p-5 rounded-ios-lg shadow-sm flex items-center justify-between">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">💸</div>
-                            <div>
-                                <h4 class="font-bold text-jap-ink text-sm">{{ ex.title }}</h4>
-                                <p class="text-[10px] text-gray-400 font-bold">{{ ex.payer }} 支付</p>
-                            </div>
+                            <p class="font-bold text-jap-ink">{{ ex.title }}</p>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase">{{ ex.payer }} 支付</p>
                         </div>
                         <div class="text-right">
-                            <p class="font-black text-jap-ink">$ {{ ex.amount.toLocaleString() }}</p>
-                            <button @click="deleteItem('expenses', ex.id)" class="text-[9px] text-jap-negative font-bold">刪除</button>
+                            <p class="font-black text-jap-ink">¥ {{ Number(ex.amount).toLocaleString() }}</p>
+                            <button @click="deleteItem('expenses', ex.id)" class="text-[10px] text-red-400 font-bold">刪除</button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- 4. 清單分頁 -->
-            <section v-if="activeTab === 'check'" class="h-full bg-jap-paper pt-16 px-6 overflow-y-auto hide-scrollbar pb-32">
+            <!-- 3. 清單分頁 -->
+            <section v-if="activeTab === 'checklist'" class="px-6 pt-20">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-black text-jap-ink">行前準備清單</h2>
+                    <h1 class="text-3xl font-black text-jap-ink">行李清單</h1>
+                    <div class="text-xs font-black text-jap-accent bg-jap-accent/10 px-3 py-1 rounded-full">
+                        {{ checklist.filter(i => i.checked).length }} / {{ checklist.length }}
+                    </div>
+                </div>
+                
+                <div class="mb-6 flex space-x-2">
+                    <input v-model="newItemName" @keyup.enter="addItem" type="text" placeholder="輸入要準備的物品..." class="flex-grow bg-white p-4 rounded-2xl font-bold text-sm border-none shadow-sm">
+                    <button @click="addItem" class="bg-jap-accent text-white px-6 rounded-2xl font-bold"><i class="fa-solid fa-plus"></i></button>
                 </div>
 
-                <div class="bg-white p-4 rounded-ios-lg shadow-sm mb-6 flex items-center space-x-2">
-                    <input v-model="newItemName" @keyup.enter="addItem" type="text" placeholder="新增物品..." class="flex-grow bg-gray-50 p-3 rounded-xl text-sm font-bold">
-                    <button @click="addItem" class="w-12 h-12 bg-jap-accent text-white rounded-xl flex items-center justify-center"><i class="fa-solid fa-plus"></i></button>
-                </div>
-
-                <div class="space-y-3">
-                    <div v-for="item in checklist" :key="item.id" @click="toggleCheck(item)" 
-                         class="bg-white p-5 rounded-ios-lg shadow-sm flex items-center justify-between active:bg-gray-50 transition-colors">
+                <div class="ios-card divide-y divide-gray-50 overflow-hidden">
+                    <div v-for="item in checklist" :key="item.id" @click="toggleCheck(item)" class="p-5 flex items-center justify-between active:bg-gray-50 transition-colors">
                         <div class="flex items-center space-x-4">
-                            <div :class="['w-6 h-6 rounded-full border-2 flex items-center justify-center', item.checked ? 'bg-jap-positive border-jap-positive' : 'border-gray-200']">
+                            <div :class="['w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all', item.checked ? 'bg-jap-success border-jap-success' : 'border-gray-200']">
                                 <i v-if="item.checked" class="fa-solid fa-check text-white text-[10px]"></i>
                             </div>
-                            <span :class="['text-sm font-bold', item.checked ? 'text-gray-300 line-through' : 'text-jap-ink']">{{ item.name }}</span>
+                            <span :class="['font-bold text-sm', item.checked ? 'text-gray-300 line-through' : 'text-jap-ink']">{{ item.name }}</span>
                         </div>
-                        <button @click.stop="deleteItem('checklist', item.id)" class="text-gray-200"><i class="fa-solid fa-xmark"></i></button>
+                        <button @click.stop="deleteItem('checklist', item.id)" class="text-gray-200 hover:text-red-500"><i class="fa-solid fa-xmark"></i></button>
                     </div>
                 </div>
             </section>
+
+            <!-- 4. 地圖分頁 -->
+            <section v-if="activeTab === 'map'" class="px-6 pt-20">
+                <h1 class="text-3xl font-black text-jap-ink mb-6">常用地點</h1>
+                <div class="grid grid-cols-1 gap-4">
+                    <a v-for="place in fastMaps" :key="place.name" :href="place.url" target="_blank" class="ios-card p-6 flex items-center space-x-4 active:scale-[0.98] transition-transform">
+                        <div class="w-12 h-12 rounded-2xl bg-jap-accent/10 text-jap-accent flex items-center justify-center text-xl">
+                            <i :class="place.icon"></i>
+                        </div>
+                        <div class="flex-grow">
+                            <h4 class="font-black text-jap-ink">{{ place.name }}</h4>
+                            <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">點擊開啟 Google Maps</p>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-200 text-xs"></i>
+                    </a>
+                </div>
+            </section>
+
         </main>
 
         <!-- 底部導航 -->
-        <nav class="fixed bottom-0 left-0 right-0 tab-bar border-t border-gray-100 px-6 pt-3 pb-8 z-[100]">
-            <div class="flex justify-between items-center max-w-lg mx-auto">
-                <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id" :class="['flex flex-col items-center space-y-1 transition-all', activeTab === tab.id ? 'text-jap-accent scale-110' : 'text-gray-400']">
-                    <i :class="['text-xl', tab.icon]"></i>
-                    <span class="text-[10px] font-black uppercase">{{ tab.name }}</span>
+        <nav class="fixed bottom-0 left-0 right-0 tab-bar border-t border-gray-100 px-4 pt-4 pb-10 z-[100]">
+            <div class="flex justify-around items-center">
+                <button v-for="t in tabs" @click="activeTab = t.id" :class="['flex flex-col items-center space-y-1 transition-all', activeTab === t.id ? 'text-jap-accent scale-110' : 'text-gray-300']">
+                    <i :class="['fa-solid text-xl', t.icon]"></i>
+                    <span class="text-[9px] font-black uppercase tracking-tighter">{{ t.name }}</span>
                 </button>
             </div>
         </nav>
 
-        <!-- 遮罩與抽屜 -->
-        <transition name="bottom-sheet">
-            <div v-if="showAddEvent" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] z-[210] p-8 pb-12 shadow-2xl">
-                <h3 class="text-xl font-black text-jap-ink mb-6">新增景點</h3>
-                <input v-model="newEvent.location" type="text" placeholder="地點" class="w-full bg-gray-50 p-4 rounded-2xl font-bold mb-4">
-                <div class="flex space-x-3 mb-4">
-                    <input v-model="newEvent.time" type="time" class="w-1/3 bg-gray-50 p-4 rounded-2xl font-bold">
-                    <input v-model="newEvent.note" type="text" placeholder="備註" class="flex-grow bg-gray-50 p-4 rounded-2xl font-bold">
+        <!-- 彈窗層 -->
+        <div v-if="showAddEvent || showAddExpense" @click="showAddEvent = showAddExpense = false" class="fixed inset-0 bg-black/40 z-[190] backdrop-blur-sm"></div>
+        
+        <transition name="sheet">
+            <div v-if="showAddEvent" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-[200] p-10 shadow-2xl">
+                <h3 class="text-xl font-black mb-6">新增雲端行程</h3>
+                <input v-model="newEvent.location" type="text" placeholder="景點或餐廳名稱" class="w-full bg-gray-50 p-4 rounded-2xl mb-4 font-bold border-none outline-none">
+                <div class="flex space-x-4 mb-6">
+                    <input v-model="newEvent.time" type="time" class="w-1/3 bg-gray-50 p-4 rounded-2xl font-bold border-none">
+                    <input v-model="newEvent.note" type="text" placeholder="備註" class="flex-grow bg-gray-50 p-4 rounded-2xl font-bold border-none">
                 </div>
-                <button @click="addEvent" class="w-full bg-jap-accent text-white py-5 rounded-2xl font-black">存入雲端</button>
+                <button @click="addEvent" class="w-full bg-jap-accent text-white py-5 rounded-2xl font-black text-lg">同步至雲端</button>
             </div>
         </transition>
 
-        <transition name="bottom-sheet">
-            <div v-if="showAddExpense" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[32px] z-[210] p-8 pb-12 shadow-2xl">
-                <h3 class="text-xl font-black text-jap-ink mb-6">新增支出</h3>
-                <input v-model="newExpense.title" type="text" placeholder="項目名稱" class="w-full bg-gray-50 p-4 rounded-2xl font-bold mb-4">
-                <div class="flex space-x-3 mb-4">
-                    <select v-model="newExpense.payer" class="w-1/2 bg-gray-50 p-4 rounded-2xl font-bold">
+        <transition name="sheet">
+            <div v-if="showAddExpense" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-[40px] z-[200] p-10 shadow-2xl">
+                <h3 class="text-xl font-black mb-6">新增分帳紀錄</h3>
+                <input v-model="newExpense.title" type="text" placeholder="消費項目 (如：一蘭拉麵)" class="w-full bg-gray-50 p-4 rounded-2xl mb-4 font-bold border-none">
+                <div class="flex space-x-4 mb-6">
+                    <select v-model="newExpense.payer" class="w-1/2 bg-gray-50 p-4 rounded-2xl font-bold border-none">
                         <option>我</option><option>朋友 A</option><option>朋友 B</option>
                     </select>
-                    <input v-model="newExpense.amount" type="number" placeholder="金額 (TWD)" class="w-1/2 bg-gray-50 p-4 rounded-2xl font-black">
+                    <input v-model="newExpense.amount" type="number" placeholder="金額 (JPY)" class="w-1/2 bg-gray-50 p-4 rounded-2xl font-black border-none">
                 </div>
-                <button @click="addExpense" class="w-full bg-jap-accent text-white py-5 rounded-2xl font-black">存入雲端</button>
+                <button @click="addExpense" class="w-full bg-jap-ink text-white py-5 rounded-2xl font-black text-lg">存入雲端</button>
             </div>
         </transition>
-
-        <div v-if="showAddEvent || showAddExpense" @click="showAddEvent = showAddExpense = false" class="fixed inset-0 bg-black/40 z-[200] backdrop-blur-sm"></div>
     </div>
 
     <script type="module">
-        const { createApp, ref, computed, onMounted } = Vue;
-        const { initializeApp, getFirestore, doc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getAuth, signInAnonymously, onAuthStateChanged, firebaseConfig } = window.fb;
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, collection, addDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
-        const appId = "fukuoka-travel-app-v1"; // 固定的 App ID
+        // === 重要：請在這裡填入你的 Firebase Config ===
+        const firebaseConfig = {
+            apiKey: "",
+            authDomain: "",
+            projectId: "",
+            storageBucket: "",
+            messagingSenderId: "",
+            appId: ""
+        };
+
+        const { createApp, ref, computed, onMounted } = Vue;
 
         createApp({
             setup() {
                 const activeTab = ref('itinerary');
-                const selectedDay = ref(1);
                 const user = ref(null);
-                const showAddEvent = ref(false);
-                const showAddExpense = ref(false);
-
-                // 資料狀態
                 const itinerary = ref([]);
                 const expenses = ref([]);
                 const checklist = ref([]);
-
-                // 表單狀態
-                const newEvent = ref({ location: '', time: '12:00', note: '' });
-                const newExpense = ref({ title: '', amount: null, payer: '我' });
+                
+                const showAddEvent = ref(false);
+                const showAddExpense = ref(false);
                 const newItemName = ref('');
 
+                const newEvent = ref({ location: '', time: '12:00', note: '' });
+                const newExpense = ref({ title: '', amount: null, payer: '我' });
+
                 const tabs = [
-                    { id: 'itinerary', name: '行程', icon: 'fa-solid fa-calendar-day' },
-                    { id: 'map', name: '地圖', icon: 'fa-solid fa-map-marked-alt' },
-                    { id: 'split', name: '分帳', icon: 'fa-solid fa-wallet' },
-                    { id: 'check', name: '清單', icon: 'fa-solid fa-list-check' }
+                    { id: 'itinerary', name: '行程', icon: 'fa-calendar-day' },
+                    { id: 'split', name: '分帳', icon: 'fa-yen-sign' },
+                    { id: 'checklist', name: '清單', icon: 'fa-list-check' },
+                    { id: 'map', name: '地圖', icon: 'fa-map-location-dot' }
                 ];
 
-                // --- Firebase 初始化 ---
+                const fastMaps = [
+                    { name: '福岡機場', icon: 'fa-plane-arrival', url: 'https://www.google.com/maps/search/Fukuoka+Airport' },
+                    { name: '博多車站', icon: 'fa-train', url: 'https://www.google.com/maps/search/Hakata+Station' },
+                    { name: '天神地下街', icon: 'fa-bag-shopping', url: 'https://www.google.com/maps/search/Tenjin+Underground+Shopping+Mall' },
+                    { name: '太宰府天滿宮', icon: 'fa-torii-gate', url: 'https://www.google.com/maps/search/Dazaifu+Tenmangu' }
+                ];
+
                 onMounted(async () => {
-                    await signInAnonymously(auth);
-                    onAuthStateChanged(auth, (u) => {
-                        user.value = u;
-                        if (u) {
-                            setupListeners();
-                        }
-                    });
+                    if (!firebaseConfig.apiKey) return;
+                    
+                    try {
+                        const app = initializeApp(firebaseConfig);
+                        const db = getFirestore(app);
+                        const auth = getAuth(app);
+                        const appId = "fukuoka-pro-v1"; // 建議使用固定 ID 確保大家連到同一個
+
+                        await signInAnonymously(auth);
+                        onAuthStateChanged(auth, (u) => {
+                            user.value = u;
+                            if (u) {
+                                // 1. 監聽行程
+                                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'itinerary'), (snap) => {
+                                    itinerary.value = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => a.time.localeCompare(b.time));
+                                });
+                                // 2. 監聽分帳
+                                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), (snap) => {
+                                    expenses.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                });
+                                // 3. 監聽清單
+                                onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'checklist'), (snap) => {
+                                    checklist.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                });
+                            }
+                        });
+
+                        // 統一動作管理
+                        window.actions = {
+                            addEvent: async () => {
+                                if (!newEvent.value.location) return;
+                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'itinerary'), { ...newEvent.value });
+                                showAddEvent.value = false;
+                                newEvent.value = { location: '', time: '12:00', note: '' };
+                            },
+                            addExpense: async () => {
+                                if (!newExpense.value.amount) return;
+                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), { ...newExpense.value });
+                                showAddExpense.value = false;
+                                newExpense.value = { title: '', amount: null, payer: '我' };
+                            },
+                            addItem: async () => {
+                                if (!newItemName.value) return;
+                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'checklist'), { name: newItemName.value, checked: false });
+                                newItemName.value = '';
+                            },
+                            toggleCheck: async (item) => {
+                                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'checklist', item.id), { checked: !item.checked });
+                            },
+                            deleteItem: async (coll, id) => {
+                                if(confirm("確定刪除？")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', coll, id));
+                            },
+                            clearCollection: async (coll) => {
+                                if(confirm("確定要結清所有資料嗎？")) {
+                                    const target = coll === 'expenses' ? expenses.value : checklist.value;
+                                    for (let item of target) {
+                                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', coll, item.id));
+                                    }
+                                    confetti({ particleCount: 100 });
+                                }
+                            }
+                        };
+                    } catch (e) { console.error(e); }
                 });
 
-                // 設定監聽器（即時同步核心）
-                const setupListeners = () => {
-                    // 監聽行程
-                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'itinerary'), (snap) => {
-                        itinerary.value = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => a.time.localeCompare(b.time));
-                    }, (err) => console.error(err));
-
-                    // 監聽分帳
-                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), (snap) => {
-                        expenses.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    }, (err) => console.error(err));
-
-                    // 監聽清單
-                    onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'checklist'), (snap) => {
-                        checklist.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    }, (err) => console.error(err));
-                };
-
-                // --- 資料操作功能 ---
-                const addEvent = async () => {
-                    if (!newEvent.value.location || !user.value) return;
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'itinerary'), { ...newEvent.value, createdAt: Date.now() });
-                    showAddEvent.value = false;
-                    newEvent.value = { location: '', time: '12:00', note: '' };
-                };
-
-                const addExpense = async () => {
-                    if (!newExpense.value.amount || !user.value) return;
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'expenses'), { ...newExpense.value, createdAt: Date.now() });
-                    showAddExpense.value = false;
-                    newExpense.value = { title: '', amount: null, payer: '我' };
-                };
-
-                const addItem = async () => {
-                    if (!newItemName.value || !user.value) return;
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'checklist'), { name: newItemName.value, checked: false, createdAt: Date.now() });
-                    newItemName.value = '';
-                };
-
-                const toggleCheck = async (item) => {
-                    if (!user.value) return;
-                    const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'checklist', item.id);
-                    await updateDoc(itemRef, { checked: !item.checked });
-                };
-
-                const deleteItem = async (collName, id) => {
-                    if (!user.value) return;
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', collName, id));
-                };
-
-                const clearCollection = async (collName) => {
-                    // Firestore 不支援直接刪除整個集合，通常是一筆一筆刪除
-                    if (!confirm("確定要結清所有帳務嗎？資料將被移除。")) return;
-                    for (let item of expenses.value) {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', collName, item.id));
-                    }
-                    confetti({ particleCount: 150, spread: 60 });
-                };
-
-                const totalExpenseAmount = computed(() => expenses.value.reduce((s, e) => s + (Number(e.amount) || 0), 0));
+                const totalJPY = computed(() => expenses.value.reduce((s, e) => s + (Number(e.amount) || 0), 0));
 
                 return {
-                    activeTab, tabs, selectedDay, user, itinerary, expenses, checklist,
+                    activeTab, tabs, user, itinerary, expenses, checklist, fastMaps,
                     showAddEvent, showAddExpense, newEvent, newExpense, newItemName,
-                    addEvent, addExpense, addItem, toggleCheck, deleteItem, clearCollection, totalExpenseAmount
+                    totalJPY,
+                    addEvent: () => window.actions.addEvent(),
+                    addExpense: () => window.actions.addExpense(),
+                    addItem: () => window.actions.addItem(),
+                    toggleCheck: (i) => window.actions.toggleCheck(i),
+                    deleteItem: (c, i) => window.actions.deleteItem(c, i),
+                    clearCollection: (c) => window.actions.clearCollection(c)
                 };
             }
         }).mount('#app');
