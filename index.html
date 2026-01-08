@@ -145,7 +145,6 @@
                                 <p @click="copyTripCode" class="text-[10px] text-gray-400 font-bold cursor-pointer uppercase">編碼: {{ currentTripId }} <i class="fa-solid fa-copy ml-1"></i></p>
                             </div>
                             <div class="flex space-x-2">
-                                <!-- 回首頁按鈕：調用優化後的 resetTrip -->
                                 <button @click="resetTrip" class="w-10 h-10 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
                                 <button @click="showAddEvent = true" class="w-10 h-10 bg-theme-primary text-white rounded-full flex items-center justify-center shadow-lg"><i class="fa-solid fa-plus"></i></button>
                             </div>
@@ -456,7 +455,6 @@
                     }
                 };
 
-                // 優化後的回首頁邏輯：徹底清除所有狀態，確保 UI 正確回跳
                 const resetTrip = () => {
                     loading.value = true;
                     currentTripId.value = ''; 
@@ -466,17 +464,12 @@
                     activeTab.value = 'itinerary';
                     localStorage.removeItem('lastTripId_v7'); 
                     localStorage.removeItem('myIdentity_v7');
-                    
-                    // 短暫延遲後關閉 Loading，讓 Vue 重新渲染初始畫面
-                    setTimeout(() => {
-                        loading.value = false;
-                    }, 500);
+                    setTimeout(() => { loading.value = false; }, 500);
                 };
 
                 onMounted(async () => {
                     const savedList = localStorage.getItem('packing_list_v77');
                     if (savedList) personalList.value = JSON.parse(savedList);
-                    
                     await signInAnonymously(auth);
                     onAuthStateChanged(auth, u => {
                         if(u && currentTripId.value) connectToTrip(currentTripId.value);
@@ -486,9 +479,7 @@
                     });
                 });
 
-                watch(personalList, (n) => {
-                    localStorage.setItem('packing_list_v77', JSON.stringify(n));
-                }, { deep: true });
+                watch(personalList, (n) => { localStorage.setItem('packing_list_v77', JSON.stringify(n)); }, { deep: true });
 
                 const totalExpensesTWD = computed(() => {
                     return expenses.value.reduce((sum, ex) => sum + (Number(ex.amountTWD) || 0), 0);
@@ -503,9 +494,7 @@
                         if (ex.participants && ex.participants.length > 0) {
                             const perPersonTWD = amountTWD / ex.participants.length;
                             balances[ex.payer] += amountTWD;
-                            ex.participants.forEach(p => {
-                                if (balances.hasOwnProperty(p)) balances[p] -= perPersonTWD;
-                            });
+                            ex.participants.forEach(p => { if (balances.hasOwnProperty(p)) balances[p] -= perPersonTWD; });
                         }
                     });
                     const debtors = [], creditors = [];
@@ -520,8 +509,7 @@
                         const amountTWD = Math.min(deb.bal, cred.bal);
                         result.push({ from: deb.name, to: cred.name, amountTWD, amountLocal: amountTWD / (tripConfig.value.rate || 1) });
                         deb.bal -= amountTWD; cred.bal -= amountTWD;
-                        if (deb.bal <= 0.1) d++;
-                        if (cred.bal <= 0.1) c++;
+                        if (deb.bal <= 0.1) d++; if (cred.bal <= 0.1) c++;
                     }
                     return result;
                 });
@@ -582,8 +570,8 @@
                         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'expenses'), { ...newExpense, amountTWD, createdAt: Date.now() });
                         showAddExpense.value = false;
                     },
+                    // 移除彈窗確認：分帳刪除
                     deleteExpense: async (docId) => {
-                        if(!confirm("確定要刪除這筆支出嗎？")) return;
                         await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'expenses', docId));
                     },
                     getCategoryItems: (cat) => personalList.value.filter(i => i.category === cat),
@@ -595,20 +583,18 @@
                         }
                     },
                     toggleCheck: (item) => item.checked = !item.checked,
+                    // 移除彈窗確認：清單刪除
                     removeItem: (id) => {
-                        if(confirm("確定刪除此清單項目？")) { personalList.value = personalList.value.filter(i => i.id !== id); }
+                        personalList.value = personalList.value.filter(i => i.id !== id);
                     },
                     openGoogleMap: (loc) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`),
                     copyTripCode: () => { 
                         try {
-                            const el = document.createElement('textarea');
-                            el.value = currentTripId.value;
+                            const el = document.createElement('textarea'); el.value = currentTripId.value;
                             document.body.appendChild(el); el.select();
                             document.execCommand('copy'); document.body.removeChild(el);
                             alert("行程編碼已複製！"); 
-                        } catch(e) {
-                            alert("編碼: " + currentTripId.value);
-                        }
+                        } catch(e) { alert("編碼: " + currentTripId.value); }
                     },
                     resetTrip,
                     closeModals: () => { showAddEvent.value = false; showAddExpense.value = false; },
