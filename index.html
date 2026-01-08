@@ -70,7 +70,7 @@
         </div>
 
         <!-- 第一階段：開團 / 身份確認 -->
-        <div v-if="(!currentTripId || !myIdentity) && !loading" class="fixed inset-0 z-[999] bg-white flex flex-col">
+        <div v-if="(!currentTripId || !myIdentity) && !loading" class="fixed inset-0 z-[999] bg-white flex flex-col overflow-hidden">
             <template v-if="!currentTripId">
                 <div class="pt-20 px-8 pb-4 text-center">
                     <h1 class="text-4xl font-black text-theme-text mb-2">企哪玩 {{ wizardData.flag }}</h1>
@@ -145,6 +145,7 @@
                                 <p @click="copyTripCode" class="text-[10px] text-gray-400 font-bold cursor-pointer uppercase">編碼: {{ currentTripId }} <i class="fa-solid fa-copy ml-1"></i></p>
                             </div>
                             <div class="flex space-x-2">
+                                <!-- 回首頁按鈕：調用優化後的 resetTrip -->
                                 <button @click="resetTrip" class="w-10 h-10 bg-gray-50 text-gray-400 rounded-full flex items-center justify-center"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
                                 <button @click="showAddEvent = true" class="w-10 h-10 bg-theme-primary text-white rounded-full flex items-center justify-center shadow-lg"><i class="fa-solid fa-plus"></i></button>
                             </div>
@@ -204,8 +205,6 @@
                         <button @click="openAddExpense" class="px-6 py-3 bg-theme-primary text-white rounded-full text-xs font-black shadow-lg">+ 記一筆</button>
                     </div>
                     <div class="flex-grow overflow-y-auto p-6 pb-32 hide-scrollbar">
-                        
-                        <!-- 總支出概覽 -->
                         <div class="bg-white p-6 rounded-ios shadow-sm mb-6 border-b-4 border-theme-primary">
                             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">全團總支出</p>
                             <div class="flex items-baseline space-x-2">
@@ -213,8 +212,6 @@
                             </div>
                             <p class="text-xs font-bold text-theme-primary mt-1">約 {{ Math.round(totalExpensesTWD / (tripConfig.rate || 1)).toLocaleString() }} {{ tripConfig.currency }}</p>
                         </div>
-
-                        <!-- 結算建議 -->
                         <div v-if="settlements.length > 0" class="mb-8 space-y-3">
                             <p class="text-[10px] font-black text-gray-400 uppercase px-2 tracking-widest">結算建議</p>
                             <div v-for="(s, idx) in settlements" :key="idx" class="bg-white border border-blue-50 p-5 rounded-ios flex justify-between items-center shadow-sm">
@@ -235,14 +232,12 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- 支出流水帳 -->
                         <p class="text-[10px] font-black text-gray-400 uppercase px-2 mb-3 tracking-widest">支出流水帳 ({{ sortedExpenses.length }})</p>
                         <div v-for="ex in sortedExpenses" :key="ex.id" class="bg-white p-4 rounded-ios mb-3 shadow-sm flex justify-between items-center">
-                            <div class="flex-grow">
+                            <div class="flex-grow overflow-hidden">
                                 <div class="flex items-center space-x-2">
-                                    <h4 class="font-black text-sm text-theme-text">{{ ex.title }}</h4>
-                                    <span class="text-[9px] bg-gray-100 px-2 py-0.5 rounded-full text-gray-400 font-bold uppercase">{{ ex.date }}</span>
+                                    <h4 class="font-black text-sm text-theme-text truncate">{{ ex.title }}</h4>
+                                    <span class="flex-shrink-0 text-[9px] bg-gray-100 px-2 py-0.5 rounded-full text-gray-400 font-bold uppercase">{{ ex.date }}</span>
                                 </div>
                                 <p class="text-[10px] text-gray-400 mt-1">
                                     <span class="text-blue-500 font-bold">{{ ex.payer }}</span> 付款
@@ -251,9 +246,8 @@
                                     <span v-for="p in ex.participants" :key="p" class="text-[8px] bg-blue-50 text-blue-400 px-1.5 py-0.5 rounded font-bold">{{ p }}</span>
                                 </div>
                             </div>
-                            <!-- 刪除按鈕移到右側，與金額並列且保持距離 -->
-                            <div class="flex items-center space-x-4 ml-2">
-                                <div class="text-right min-w-[80px]">
+                            <div class="flex items-center space-x-4 ml-2 flex-shrink-0">
+                                <div class="text-right min-w-[70px]">
                                     <p class="font-black text-theme-text text-sm leading-none">{{ Number(ex.amount).toLocaleString() }} {{ ex.currency }}</p>
                                     <p class="text-[9px] text-gray-300 font-bold mt-1">≈ NT$ {{ Math.round(ex.amountTWD).toLocaleString() }}</p>
                                 </div>
@@ -262,7 +256,6 @@
                                 </button>
                             </div>
                         </div>
-                        
                         <div v-if="sortedExpenses.length === 0" class="text-center py-20 opacity-20">
                             <i class="fa-solid fa-receipt text-6xl mb-4"></i>
                             <p class="text-sm font-bold">尚無任何支出記錄</p>
@@ -278,11 +271,8 @@
                     <div class="flex-grow overflow-y-auto p-6 pb-32 hide-scrollbar space-y-6">
                         <div v-for="cat in checkCategories" :key="cat" class="bg-white rounded-ios shadow-sm p-4">
                             <h3 class="font-black text-sm text-theme-primary mb-3 border-b border-gray-50 pb-2">{{ cat }}</h3>
-                            
-                            <!-- 類別內的項目 -->
                             <div class="space-y-1 mb-4">
                                 <div v-for="item in getCategoryItems(cat)" :key="item.id" class="flex items-center py-3 group">
-                                    <!-- 勾選區塊：獨立點擊 -->
                                     <div @click="toggleCheck(item)" class="flex items-center flex-grow cursor-pointer overflow-hidden">
                                         <div :class="['w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center mr-3 transition-colors', item.checked ? 'bg-theme-success border-theme-success' : 'border-gray-200']">
                                             <i v-if="item.checked" class="fa-solid fa-check text-white text-[8px]"></i>
@@ -291,21 +281,13 @@
                                             {{ item.name }}
                                         </span>
                                     </div>
-                                    <!-- 刪除按鈕：比照行程刪除邏輯 -->
-                                    <button @click.stop="removeItem(item.id)" class="text-gray-200 hover:text-theme-danger p-2 ml-2 transition-colors">
+                                    <button @click.stop="removeItem(item.id)" class="text-gray-200 hover:text-theme-danger p-2 ml-2 transition-colors flex-shrink-0">
                                         <i class="fa-solid fa-trash-can text-sm"></i>
                                     </button>
                                 </div>
                             </div>
-
-                            <!-- 即時新增輸入框 -->
                             <div class="flex items-center bg-gray-50 rounded-full px-4 py-2 mt-2">
-                                <input 
-                                    v-model="quickAdd[cat]" 
-                                    @keyup.enter="quickAddItem(cat)"
-                                    placeholder="新增項目..." 
-                                    class="bg-transparent text-xs font-bold w-full outline-none"
-                                >
+                                <input v-model="quickAdd[cat]" @keyup.enter="quickAddItem(cat)" placeholder="新增項目..." class="bg-transparent text-xs font-bold w-full outline-none">
                                 <button @click="quickAddItem(cat)" class="ml-2 text-theme-primary text-xs font-black">新增</button>
                             </div>
                         </div>
@@ -327,7 +309,6 @@
         <!-- 彈窗系統 -->
         <div v-if="showAddEvent || showAddExpense" class="fixed inset-0 bg-black/40 z-[200] flex items-end" @click.self="closeModals">
             <div class="bg-white w-full rounded-t-ios p-8 pb-12 shadow-2xl max-h-[90vh] overflow-y-auto">
-                <!-- 新增行程 -->
                 <div v-if="showAddEvent" class="space-y-4">
                     <div class="flex justify-between items-center">
                         <h3 class="font-black text-lg">新增行程點</h3>
@@ -338,14 +319,11 @@
                     <textarea v-model="newEvent.note" placeholder="備註..." class="w-full bg-gray-50 p-4 rounded-ios font-bold outline-none h-24"></textarea>
                     <button @click="addEvent" class="w-full bg-theme-primary text-white py-4 rounded-ios font-black shadow-lg">新增至行程</button>
                 </div>
-                
-                <!-- 新增支出 -->
                 <div v-if="showAddExpense" class="space-y-4">
                     <div class="flex justify-between items-center">
                         <h3 class="font-black text-lg">記一筆消費</h3>
                         <button @click="closeModals" class="text-gray-300 p-2"><i class="fa-solid fa-circle-xmark"></i></button>
                     </div>
-                    
                     <div class="space-y-2">
                         <div class="flex space-x-2">
                             <button v-for="curr in ['TWD', tripConfig.currency]" :key="curr" @click="newExpense.currency = curr" :class="['flex-1 py-2 rounded-ios text-xs font-black border transition-all', newExpense.currency === curr ? 'bg-theme-primary text-white border-theme-primary' : 'bg-white text-gray-400 border-gray-100']">
@@ -357,19 +335,16 @@
                             <input v-model.number="newExpense.amount" type="number" placeholder="0" class="w-full bg-gray-50 p-6 pt-10 rounded-ios text-4xl font-black text-right outline-none">
                         </div>
                     </div>
-
                     <div class="grid grid-cols-2 gap-3">
                         <input v-model="newExpense.title" placeholder="消費內容" class="w-full bg-gray-50 p-4 rounded-ios font-bold text-sm outline-none">
                         <input v-model="newExpense.date" type="date" class="w-full bg-gray-50 p-4 rounded-ios font-bold text-sm outline-none">
                     </div>
-                    
                     <div>
                         <p class="text-[10px] font-black text-gray-400 mb-2 uppercase tracking-tighter">誰付錢的？</p>
                         <select v-model="newExpense.payer" class="w-full bg-gray-50 p-3 rounded-ios font-bold text-xs outline-none">
                             <option v-for="t in tripConfig.travelers" :key="t" :value="t">{{ t }}</option>
                         </select>
                     </div>
-
                     <div>
                         <p class="text-[10px] font-black text-gray-400 mb-2 uppercase tracking-tighter">參與分攤的人</p>
                         <div class="grid grid-cols-3 gap-2">
@@ -381,7 +356,6 @@
                             </div>
                         </div>
                     </div>
-
                     <button @click="addExpense" class="w-full bg-theme-primary text-white py-4 rounded-ios font-black shadow-lg">儲存支出</button>
                 </div>
             </div>
@@ -482,10 +456,21 @@
                     }
                 };
 
+                // 優化後的回首頁邏輯：徹底清除所有狀態，確保 UI 正確回跳
                 const resetTrip = () => {
-                    currentTripId.value = ''; myIdentity.value = '';
-                    localStorage.removeItem('lastTripId_v7'); localStorage.removeItem('myIdentity_v7');
-                    loading.value = false;
+                    loading.value = true;
+                    currentTripId.value = ''; 
+                    myIdentity.value = '';
+                    itinerary.value = [];
+                    expenses.value = [];
+                    activeTab.value = 'itinerary';
+                    localStorage.removeItem('lastTripId_v7'); 
+                    localStorage.removeItem('myIdentity_v7');
+                    
+                    // 短暫延遲後關閉 Loading，讓 Vue 重新渲染初始畫面
+                    setTimeout(() => {
+                        loading.value = false;
+                    }, 500);
                 };
 
                 onMounted(async () => {
@@ -513,7 +498,6 @@
                     if (!tripConfig.value.travelers || !tripConfig.value.travelers.length) return [];
                     const balances = {}; 
                     tripConfig.value.travelers.forEach(t => balances[t] = 0);
-                    
                     expenses.value.forEach(ex => {
                         const amountTWD = Number(ex.amountTWD) || 0;
                         if (ex.participants && ex.participants.length > 0) {
@@ -524,24 +508,17 @@
                             });
                         }
                     });
-
                     const debtors = [], creditors = [];
                     Object.keys(balances).forEach(name => {
                         if (balances[name] < -0.1) debtors.push({ name, bal: Math.abs(balances[name]) });
                         else if (balances[name] > 0.1) creditors.push({ name, bal: balances[name] });
                     });
-
                     const result = [];
                     let d = 0, c = 0;
                     while (d < debtors.length && c < creditors.length) {
                         const deb = debtors[d], cred = creditors[c];
                         const amountTWD = Math.min(deb.bal, cred.bal);
-                        result.push({ 
-                            from: deb.name, 
-                            to: cred.name, 
-                            amountTWD, 
-                            amountLocal: amountTWD / (tripConfig.value.rate || 1) 
-                        });
+                        result.push({ from: deb.name, to: cred.name, amountTWD, amountLocal: amountTWD / (tripConfig.value.rate || 1) });
                         deb.bal -= amountTWD; cred.bal -= amountTWD;
                         if (deb.bal <= 0.1) d++;
                         if (cred.bal <= 0.1) c++;
@@ -573,7 +550,6 @@
                     }),
                     filteredItinerary: computed(() => itinerary.value.filter(i => i.dateStr === selectedDateStr.value).sort((a,b)=>a.time.localeCompare(b.time))),
                     sortedExpenses: computed(() => [...expenses.value].sort((a,b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id))),
-
                     createNewTrip: async () => {
                         loading.value = true;
                         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -592,61 +568,35 @@
                         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'events'), { ...newEvent, dateStr: selectedDateStr.value });
                         showAddEvent.value = false; Object.assign(newEvent, { location: '', time: '10:00', note: '' });
                     },
-                    // 行程刪除邏輯：作為基準
                     deleteEvent: async (id) => {
                         if(!confirm("確定要刪除行程嗎？")) return;
                         await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'events', id));
                     },
                     openAddExpense: () => {
                         showAddExpense.value = true;
-                        Object.assign(newExpense, { 
-                            amount: null, 
-                            title: '', 
-                            payer: myIdentity.value, 
-                            currency: tripConfig.value.currency,
-                            participants: [...tripConfig.value.travelers],
-                            date: new Date().toISOString().split('T')[0]
-                        });
+                        Object.assign(newExpense, { amount: null, title: '', payer: myIdentity.value, currency: tripConfig.value.currency, participants: [...tripConfig.value.travelers], date: new Date().toISOString().split('T')[0] });
                     },
                     addExpense: async () => {
                         if(!newExpense.amount || !newExpense.participants.length) return;
                         let amountTWD = newExpense.currency === 'TWD' ? newExpense.amount : newExpense.amount * (tripConfig.value.rate || 1);
-                        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'expenses'), { 
-                            ...newExpense, 
-                            amountTWD,
-                            createdAt: Date.now()
-                        });
+                        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'expenses'), { ...newExpense, amountTWD, createdAt: Date.now() });
                         showAddExpense.value = false;
                     },
-                    // 分帳刪除邏輯：比照行程刪除
                     deleteExpense: async (docId) => {
                         if(!confirm("確定要刪除這筆支出嗎？")) return;
-                        try {
-                            const expenseRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'expenses', docId);
-                            await deleteDoc(expenseRef);
-                        } catch (e) {
-                            console.error("Delete expense failed", e);
-                        }
+                        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'trips', currentTripId.value, 'expenses', docId));
                     },
                     getCategoryItems: (cat) => personalList.value.filter(i => i.category === cat),
                     quickAddItem: (cat) => {
                         const name = quickAdd[cat];
                         if (name && name.trim()) {
-                            personalList.value.push({
-                                id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
-                                name: name.trim(),
-                                category: cat,
-                                checked: false
-                            });
+                            personalList.value.push({ id: Date.now().toString() + Math.random().toString(36).substr(2, 4), name: name.trim(), category: cat, checked: false });
                             quickAdd[cat] = '';
                         }
                     },
                     toggleCheck: (item) => item.checked = !item.checked,
-                    // 清單刪除邏輯：比照行程刪除
                     removeItem: (id) => {
-                        if(confirm("確定刪除此清單項目？")) {
-                            personalList.value = personalList.value.filter(i => i.id !== id);
-                        }
+                        if(confirm("確定刪除此清單項目？")) { personalList.value = personalList.value.filter(i => i.id !== id); }
                     },
                     openGoogleMap: (loc) => window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`),
                     copyTripCode: () => { 
@@ -660,6 +610,7 @@
                             alert("編碼: " + currentTripId.value);
                         }
                     },
+                    resetTrip,
                     closeModals: () => { showAddEvent.value = false; showAddExpense.value = false; },
                     getColorClass: (i) => ['bg-indigo-400', 'bg-sky-400', 'bg-teal-400', 'bg-orange-400', 'bg-fuchsia-400'][i % 5],
                     handleLocationInput
